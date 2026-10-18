@@ -12,3 +12,9 @@ Static GitHub Pages portfolio. Upload the contents of this folder to the reposit
 
 ## Important image note
 The included JPGs are illustrative assets carried forward from the previous prototype and renamed into the requested structure. They are not authentic photographs of these exact cars, and not all are true portrait originals. Replace them with your own portrait photographs; the full-screen viewer preserves the source image's full aspect ratio. Main/gallery grid thumbnails are intentionally square-cropped with CSS only.
+
+## V5 dynamic galleries
+- The gallery discovers numbered JPG files sequentially from `PREFIX-01.jpg` up to the first missing number (up to 200), so each car can have a different number of photos. It does not create empty placeholders. Keep numbering continuous with no gaps.
+- `PREFIX-Main.jpg` remains the main-page thumbnail and is not counted as a gallery image.
+- Optional local videos can be named `PREFIX-10.mp4`, `PREFIX-11.mp4`, etc.; video scanning stops at the first missing number.
+- GitHub Pages is static and cannot list a folder automatically, so the script checks sequential filenames.
