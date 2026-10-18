@@ -1,19 +1,43 @@
-const cars=[
- {name:'Ferrari 250 GT Lusso',status:'Fully Restored',category:'Restored',desc:'A beautifully preserved grand tourer, sourced through independent scouting.',year:'1963',story:'Condition, provenance and location details can be added here.'},
- {name:'Alfa Romeo Giulia Sprint GT',status:'Barn Find',category:'Barn Find',desc:'An honest survivor, waiting for its next chapter.',year:'1966',story:'Add discovery notes, condition report and ownership history here.'},
- {name:'Fiat 124 Spider',status:'Restoration Project',category:'Project',desc:'A small Italian roadster with a project worth exploring.',year:'1972',story:'Add the restoration scope, parts status and estimated work here.'},
- {name:'Lamborghini Countach LP500 S',status:'Project',category:'Project',desc:'An angular icon, documented from first inspection to final result.',year:'1983',story:'Add project background and technical details here.'},
- {name:'Fiat 500',status:'Scouted Gem',category:'Restored',desc:'A tiny classic with a big place in Italian motoring culture.',year:'1968',story:'Add condition notes and details about the find here.'},
- {name:'Maserati 3500 GT',status:'Fully Restored',category:'Restored',desc:'Elegant Italian grand touring from the golden age.',year:'1961',story:'Add restoration details, provenance and documentation here.'},
- {name:'Alfa Romeo Giulia Super',status:'Daily Driver / Survivor',category:'Restored',desc:'A usable classic with character and a life beyond the garage.',year:'1972',story:'Add service history and current condition here.'},
- {name:'Ferrari Dino 246 GT',status:'Barn Find',category:'Barn Find',desc:'A rare sight waiting quietly to be rediscovered.',year:'1973',story:'Add discovery story and condition details here.'},
- {name:'Lancia Delta Integrale',status:'Scouted / Original',category:'Restored',desc:'A rally-bred legend, found and assessed on its own merits.',year:'1990',story:'Add mileage, specification and history here.'},
- {name:'Alfa Romeo GTV 2000',status:'Restoration Project',category:'Project',desc:'A classic coupe ready for careful recommissioning.',year:'1974',story:'Add known issues, missing parts and project scope here.'},
- {name:'Maserati Quattroporte',status:'Barn Find',category:'Barn Find',desc:'A forgotten luxury saloon with an intriguing story.',year:'1970',story:'Add background, condition and location details here.'},
- {name:'Ferrari 365 GTB/4 Daytona',status:'Scouted / Excellent Condition',category:'Restored',desc:'A landmark V12 grand tourer sourced through scouting.',year:'1971',story:'Add provenance and inspection notes here.'}
-];
-const grid=document.querySelector('#car-grid');let currentCar=0,currentImage=0;const modal=document.querySelector('#modal');
-function render(filter='all'){grid.innerHTML='';cars.forEach((car,i)=>{if(filter!=='all'&&car.category!==filter)return;const card=document.createElement('article');card.className='car-card';card.tabIndex=0;card.setAttribute('role','button');card.setAttribute('aria-label',`Open gallery for ${car.name}`);card.innerHTML=`<img class="car-photo" src="assets/car-${String(i+1).padStart(2,'0')}.jpg" alt="${car.name}" loading="lazy"><div class="car-info"><div><h2 class="car-title">${car.name}</h2><p class="car-meta">${car.year} · Scouted in Italy</p></div><span class="car-status">${car.status}</span></div>`;card.addEventListener('click',()=>openGallery(i));card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openGallery(i)}});grid.appendChild(card)});}
-function openGallery(i){currentCar=i;currentImage=0;modal.classList.add('open');modal.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';updateGallery();document.querySelector('.close').focus()}
-function updateGallery(){const car=cars[currentCar];document.querySelector('#modal-title').textContent=car.name;document.querySelector('#modal-status').textContent=`${car.year} · ${car.status}`;document.querySelector('#modal-desc').textContent=car.desc+' '+car.story;const src=`assets/car-${String(currentCar+1).padStart(2,'0')}.jpg`;document.querySelector('#gallery-image').src=src;document.querySelector('#gallery-image').alt=car.name;document.querySelector('#gallery-count').textContent=`PHOTO ${currentImage+1} / 1`;document.querySelector('#gallery-thumbs').innerHTML=`<button class="active" aria-label="Photo 1"><img src="${src}" alt=""></button>`}
-function closeGallery(){modal.classList.remove('open');modal.setAttribute('aria-hidden','true');document.body.style.overflow=''}document.querySelectorAll('[data-close]').forEach(el=>el.addEventListener('click',closeGallery));document.querySelectorAll('.filter').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.filter').forEach(b=>b.classList.remove('active'));btn.classList.add('active');render(btn.dataset.filter)}));document.querySelector('.prev').addEventListener('click',()=>{});document.querySelector('.next').addEventListener('click',()=>{});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeGallery()});document.querySelector('.menu').addEventListener('click',()=>document.querySelector('.topbar nav').classList.toggle('mobile-open'));render();
+/* Italian Finds V6
+   Add/remove cars in cars.json. Folder numbers remain 01, 02, 03...
+   Images: assets/NN/PREFIX-Main.jpg and PREFIX-01.jpg, PREFIX-02.jpg...
+   Optional videos: PREFIX-VIDEO-01.mp4, PREFIX-VIDEO-02.mp4...
+*/
+let cars = [];
+const grid=document.getElementById('carGrid'),dialog=document.getElementById('galleryDialog'),galleryGrid=document.getElementById('galleryGrid'),lightbox=document.getElementById('lightbox'),lightboxContent=document.getElementById('lightboxContent');
+let activeItems=[],activeIndex=0;
+function path(car,file){return `assets/${car.folder}/${file}`}
+function loadImage(src){return new Promise(resolve=>{const img=new Image();img.onload=()=>resolve(true);img.onerror=()=>resolve(false);img.src=src})}
+async function discoverSequence(car,extension,start=1,max=250){
+ const found=[];
+ for(let n=start;n<=max;n++){
+  const filename=`${car.prefix}-${String(n).padStart(2,'0')}.${extension}`;
+  const ok=await loadImage(path(car,filename));
+  if(!ok) break;
+  found.push({src:path(car,filename),number:n});
+ }
+ return found;
+}
+function makeCard(car,index){
+ const card=document.createElement('article');card.className='car-card';card.tabIndex=0;card.setAttribute('role','button');
+ const wrap=document.createElement('div');wrap.className='car-image-wrap';
+ const img=document.createElement('img');img.className='car-image';img.src=path(car,car.prefix+'-Main.jpg');img.alt=`${car.year} ${car.name}`;img.loading=index<3?'eager':'lazy';
+ img.onerror=()=>{card.remove()};wrap.appendChild(img);
+ const title=document.createElement('p');title.className='car-title';title.textContent=`${car.year} ${car.name}`;
+ card.append(wrap,title);card.addEventListener('click',()=>openGallery(car));card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openGallery(car)}});return card;
+}
+async function mediaExists(src){return new Promise(resolve=>{const v=document.createElement('video');v.preload='metadata';v.onloadedmetadata=()=>resolve(true);v.onerror=()=>resolve(false);v.src=src})}
+async function openGallery(car){
+ document.getElementById('galleryTitle').textContent=`${car.year} ${car.name}`;galleryGrid.innerHTML='<p class="gallery-loading">Loading photographs…</p>';activeItems=[];if(!dialog.open)dialog.showModal();
+ const photos=await discoverSequence(car,'jpg',1,250);
+ activeItems=photos.map(p=>({type:'image',src:p.src,title:''}));
+ // Videos are appended after all photos. Name them PREFIX-VIDEO-01.mp4, -02.mp4...
+ for(let n=1;n<=30;n++){const filename=`${car.prefix}-VIDEO-${String(n).padStart(2,'0')}.mp4`;const src=path(car,filename);if(!await mediaExists(src))break;activeItems.push({type:'video',src,title:''});}
+ galleryGrid.innerHTML='';if(!activeItems.length){galleryGrid.innerHTML='<p>No numbered photographs found. Check the folder, prefix, and filenames.</p>';return;}
+ activeItems.forEach((item,index)=>{const fig=document.createElement('figure');fig.className='gallery-item';if(item.type==='image'){const img=document.createElement('img');img.src=item.src;img.alt=item.title;img.loading='lazy';img.addEventListener('click',()=>showLightbox(index));fig.appendChild(img);}else{const v=document.createElement('video');v.className='gallery-video';v.src=item.src;v.controls=true;v.preload='metadata';v.playsInline=true;fig.appendChild(v);const open=document.createElement('button');open.className='video-open';open.type='button';open.textContent='Open video';open.addEventListener('click',()=>showLightbox(index));fig.appendChild(open);}galleryGrid.appendChild(fig);});
+}
+function showLightbox(i){activeIndex=i;renderLightbox();if(!lightbox.open)lightbox.showModal()}
+function renderLightbox(){const item=activeItems[activeIndex];if(!item)return;lightboxContent.innerHTML='';if(item.type==='video'){const v=document.createElement('video');v.src=item.src;v.controls=true;v.autoplay=true;v.playsInline=true;lightboxContent.appendChild(v)}else{const img=document.createElement('img');img.src=item.src;img.alt=item.title;lightboxContent.appendChild(img)}document.getElementById('lightboxCounter').textContent=`${activeIndex+1} / ${activeItems.length}`}
+function move(d){if(!activeItems.length)return;activeIndex=(activeIndex+d+activeItems.length)%activeItems.length;renderLightbox()}
+document.getElementById('closeGallery').addEventListener('click',()=>dialog.close());dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close()});document.getElementById('closeLightbox').addEventListener('click',()=>lightbox.close());document.getElementById('prevImage').addEventListener('click',()=>move(-1));document.getElementById('nextImage').addEventListener('click',()=>move(1));lightbox.addEventListener('click',e=>{if(e.target===lightbox)lightbox.close()});document.addEventListener('keydown',e=>{if(!lightbox.open)return;if(e.key==='ArrowLeft')move(-1);if(e.key==='ArrowRight')move(1)});
+fetch('cars.json').then(r=>{if(!r.ok)throw new Error('cars.json could not be loaded');return r.json()}).then(data=>{cars=data;cars.forEach((c,i)=>grid.appendChild(makeCard(c,i)))}).catch(err=>{grid.innerHTML='<p>Could not load the car catalogue. Check that cars.json is at the website root.</p>';console.error(err)});
