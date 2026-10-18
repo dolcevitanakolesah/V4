@@ -52,23 +52,5 @@
     "prefix": "Lamborghini350GT",
     "year": "1965",
     "name": "Lamborghini 350 GT"
-  },
-  {
-    "folder": "10",
-    "prefix": "Flaminia",
-    "year": "1962",
-    "name": "Lancia Flaminia Coupé"
-  },
-  {
-    "folder": "11",
-    "prefix": "Pantera",
-    "year": "1973",
-    "name": "De Tomaso Pantera"
-  },
-  {
-    "folder": "12",
-    "prefix": "Ferrari308GTB",
-    "year": "1984",
-    "name": "Ferrari 308 GTB"
   }
 ]
