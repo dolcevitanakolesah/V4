@@ -1,43 +1,166 @@
-/* Italian Finds V6
-   Add/remove cars in cars.json. Folder numbers remain 01, 02, 03...
-   Images: assets/NN/PREFIX-Main.jpg and PREFIX-01.jpg, PREFIX-02.jpg...
-   Optional videos: PREFIX-VIDEO-01.mp4, PREFIX-VIDEO-02.mp4...
-*/
-let cars = [];
-const grid=document.getElementById('carGrid'),dialog=document.getElementById('galleryDialog'),galleryGrid=document.getElementById('galleryGrid'),lightbox=document.getElementById('lightbox'),lightboxContent=document.getElementById('lightboxContent');
-let activeItems=[],activeIndex=0;
-function path(car,file){return `assets/${car.folder}/${file}`}
-function loadImage(src){return new Promise(resolve=>{const img=new Image();img.onload=()=>resolve(true);img.onerror=()=>resolve(false);img.src=src})}
-async function discoverSequence(car,extension,start=1,max=250){
- const found=[];
- for(let n=start;n<=max;n++){
-  const filename=`${car.prefix}-${String(n).padStart(2,'0')}.${extension}`;
-  const ok=await loadImage(path(car,filename));
-  if(!ok) break;
-  found.push({src:path(car,filename),number:n});
- }
- return found;
-}
-function makeCard(car,index){
- const card=document.createElement('article');card.className='car-card';card.tabIndex=0;card.setAttribute('role','button');
- const wrap=document.createElement('div');wrap.className='car-image-wrap';
- const img=document.createElement('img');img.className='car-image';img.src=path(car,car.prefix+'-Main.jpg');img.alt=`${car.year} ${car.name}`;img.loading=index<3?'eager':'lazy';
- img.onerror=()=>{card.remove()};wrap.appendChild(img);
- const title=document.createElement('p');title.className='car-title';title.textContent=`${car.year} ${car.name}`;
- card.append(wrap,title);card.addEventListener('click',()=>openGallery(car));card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openGallery(car)}});return card;
-}
-async function mediaExists(src){return new Promise(resolve=>{const v=document.createElement('video');v.preload='metadata';v.onloadedmetadata=()=>resolve(true);v.onerror=()=>resolve(false);v.src=src})}
-async function openGallery(car){
- document.getElementById('galleryTitle').textContent=`${car.year} ${car.name}`;galleryGrid.innerHTML='<p class="gallery-loading">Loading photographs…</p>';activeItems=[];if(!dialog.open)dialog.showModal();
- const photos=await discoverSequence(car,'jpg',1,250);
- activeItems=photos.map(p=>({type:'image',src:p.src,title:''}));
- // Videos are appended after all photos. Name them PREFIX-VIDEO-01.mp4, -02.mp4...
- for(let n=1;n<=30;n++){const filename=`${car.prefix}-VIDEO-${String(n).padStart(2,'0')}.mp4`;const src=path(car,filename);if(!await mediaExists(src))break;activeItems.push({type:'video',src,title:''});}
- galleryGrid.innerHTML='';if(!activeItems.length){galleryGrid.innerHTML='<p>No numbered photographs found. Check the folder, prefix, and filenames.</p>';return;}
- activeItems.forEach((item,index)=>{const fig=document.createElement('figure');fig.className='gallery-item';if(item.type==='image'){const img=document.createElement('img');img.src=item.src;img.alt=item.title;img.loading='lazy';img.addEventListener('click',()=>showLightbox(index));fig.appendChild(img);}else{const v=document.createElement('video');v.className='gallery-video';v.src=item.src;v.controls=true;v.preload='metadata';v.playsInline=true;fig.appendChild(v);const open=document.createElement('button');open.className='video-open';open.type='button';open.textContent='Open video';open.addEventListener('click',()=>showLightbox(index));fig.appendChild(open);}galleryGrid.appendChild(fig);});
-}
-function showLightbox(i){activeIndex=i;renderLightbox();if(!lightbox.open)lightbox.showModal()}
-function renderLightbox(){const item=activeItems[activeIndex];if(!item)return;lightboxContent.innerHTML='';if(item.type==='video'){const v=document.createElement('video');v.src=item.src;v.controls=true;v.autoplay=true;v.playsInline=true;lightboxContent.appendChild(v)}else{const img=document.createElement('img');img.src=item.src;img.alt=item.title;lightboxContent.appendChild(img)}document.getElementById('lightboxCounter').textContent=`${activeIndex+1} / ${activeItems.length}`}
-function move(d){if(!activeItems.length)return;activeIndex=(activeIndex+d+activeItems.length)%activeItems.length;renderLightbox()}
-document.getElementById('closeGallery').addEventListener('click',()=>dialog.close());dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close()});document.getElementById('closeLightbox').addEventListener('click',()=>lightbox.close());document.getElementById('prevImage').addEventListener('click',()=>move(-1));document.getElementById('nextImage').addEventListener('click',()=>move(1));lightbox.addEventListener('click',e=>{if(e.target===lightbox)lightbox.close()});document.addEventListener('keydown',e=>{if(!lightbox.open)return;if(e.key==='ArrowLeft')move(-1);if(e.key==='ArrowRight')move(1)});
-fetch('cars.json').then(r=>{if(!r.ok)throw new Error('cars.json could not be loaded');return r.json()}).then(data=>{cars=data;cars.forEach((c,i)=>grid.appendChild(makeCard(c,i)))}).catch(err=>{grid.innerHTML='<p>Could not load the car catalogue. Check that cars.json is at the website root.</p>';console.error(err)});
+/* Italian Finds: compatible with the older #car-grid / #modal page structure.
+   Reads cars from cars.json and loads each car's numbered photos dynamically. */
+(() => {
+  const grid = document.querySelector('#car-grid');
+  const modal = document.querySelector('#modal');
+  if (!grid || !modal) {
+    console.error('Italian Finds: expected #car-grid and #modal in index.html. This script must match the page HTML.');
+    return;
+  }
+  let cars = [];
+  let currentCar = 0;
+  let currentImage = 0;
+  let gallery = [];
+  const $ = (selector) => document.querySelector(selector);
+  const asset = (car, filename) => `assets/${car.folder}/${filename}`;
+  const pad = (n) => String(n).padStart(2, '0');
+
+  function addCard(car, i) {
+    const card = document.createElement('article');
+    card.className = 'car-card';
+    card.tabIndex = 0;
+    card.setAttribute('role', 'button');
+    card.setAttribute('aria-label', `Open gallery for ${car.year} ${car.name}`);
+    const img = document.createElement('img');
+    img.className = 'car-photo';
+    img.src = asset(car, `${car.prefix}-Main.jpg`);
+    img.alt = `${car.year} ${car.name}`;
+    img.loading = i < 4 ? 'eager' : 'lazy';
+    img.onerror = () => { card.remove(); };
+    const info = document.createElement('div');
+    info.className = 'car-info';
+    const titleWrap = document.createElement('div');
+    const title = document.createElement('h2');
+    title.className = 'car-title';
+    title.textContent = `${car.year} ${car.name}`;
+    titleWrap.appendChild(title);
+    const meta = document.createElement('p');
+    meta.className = 'car-meta';
+    meta.textContent = 'Scouted in Italy';
+    titleWrap.appendChild(meta);
+    info.appendChild(titleWrap);
+    card.append(img, info);
+    card.addEventListener('click', () => openGallery(i));
+    card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openGallery(i); } });
+    grid.appendChild(card);
+  }
+
+  function loadImage(src) {
+    return new Promise(resolve => {
+      const image = new Image();
+      image.onload = () => resolve(true);
+      image.onerror = () => resolve(false);
+      image.src = src;
+    });
+  }
+
+  async function openGallery(index) {
+    currentCar = index;
+    currentImage = 0;
+    const car = cars[currentCar];
+    gallery = [];
+    // Discover consecutive numbered photos; no placeholders are generated.
+    for (let n = 1; n <= 250; n++) {
+      const filename = `${car.prefix}-${pad(n)}.jpg`;
+      const src = asset(car, filename);
+      if (!await loadImage(src)) break;
+      gallery.push({ type: 'image', src });
+    }
+    // Videos, if present, are checked after photos. Name them PREFIX-video-01.mp4 etc.
+    for (let n = 1; n <= 30; n++) {
+      const filename = `${car.prefix}-video-${pad(n)}.mp4`;
+      const src = asset(car, filename);
+      const exists = await new Promise(resolve => {
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        video.onloadedmetadata = () => resolve(true);
+        video.onerror = () => resolve(false);
+        video.src = src;
+      });
+      if (!exists) break;
+      gallery.push({ type: 'video', src });
+    }
+    if (!gallery.length) {
+      // Show the Main image if there are no numbered detail photos.
+      gallery.push({ type: 'image', src: asset(car, `${car.prefix}-Main.jpg`) });
+    }
+    $('#modal-title').textContent = `${car.year} ${car.name}`;
+    const status = $('#modal-status'); if (status) status.textContent = car.status || '';
+    const desc = $('#modal-desc'); if (desc) desc.textContent = [car.desc, car.story].filter(Boolean).join(' ');
+    renderGallery();
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    const close = $('.close'); if (close) close.focus();
+  }
+
+  function renderGallery() {
+    const item = gallery[currentImage];
+    const image = $('#gallery-image');
+    const count = $('#gallery-count');
+    const thumbs = $('#gallery-thumbs');
+    if (!item || !image || !count || !thumbs) return;
+    const existingVideo = $('#gallery-video');
+    if (existingVideo) existingVideo.remove();
+    if (item.type === 'video') {
+      image.style.display = 'none';
+      let video = document.createElement('video');
+      video.id = 'gallery-video'; video.src = item.src; video.controls = true; video.autoplay = true; video.playsInline = true;
+      image.parentNode.insertBefore(video, image.nextSibling);
+    } else {
+      image.style.display = '';
+      image.src = item.src;
+      image.alt = `${cars[currentCar].year} ${cars[currentCar].name}`;
+    }
+    count.textContent = `${currentImage + 1} / ${gallery.length}`;
+    thumbs.innerHTML = '';
+    gallery.forEach((entry, i) => {
+      const button = document.createElement('button');
+      button.className = i === currentImage ? 'active' : '';
+      button.setAttribute('aria-label', `Open item ${i + 1}`);
+      if (entry.type === 'image') {
+        const thumb = document.createElement('img'); thumb.src = entry.src; thumb.alt = ''; button.appendChild(thumb);
+      } else {
+        button.textContent = '▶';
+      }
+      button.addEventListener('click', () => { currentImage = i; renderGallery(); });
+      thumbs.appendChild(button);
+    });
+  }
+
+  function move(delta) {
+    if (!gallery.length) return;
+    currentImage = (currentImage + delta + gallery.length) % gallery.length;
+    renderGallery();
+  }
+  function closeGallery() {
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+    const video = $('#gallery-video'); if (video) video.remove();
+  }
+
+  document.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', closeGallery));
+  const closeButton = $('.close'); if (closeButton) closeButton.addEventListener('click', closeGallery);
+  const prev = $('.prev'); if (prev) prev.addEventListener('click', () => move(-1));
+  const next = $('.next'); if (next) next.addEventListener('click', () => move(1));
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeGallery();
+    if (modal.classList.contains('open') && e.key === 'ArrowLeft') move(-1);
+    if (modal.classList.contains('open') && e.key === 'ArrowRight') move(1);
+  });
+  document.querySelectorAll('.filter').forEach(btn => btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const filter = btn.dataset.filter || 'all';
+    grid.querySelectorAll('.car-card').forEach((card, i) => {
+      const car = cars[Number(card.dataset.carIndex)];
+      card.style.display = filter === 'all' || (car && car.category === filter) ? '' : 'none';
+    });
+  }));
+  const menu = $('.menu'); if (menu) menu.addEventListener('click', () => { const nav = document.querySelector('.topbar nav'); if (nav) nav.classList.toggle('mobile-open'); });
+
+  fetch('cars.json').then(response => { if (!response.ok) throw new Error('cars.json could not be loaded'); return response.json(); })
+    .then(data => { cars = data; cars.forEach((car, i) => addCard(car, i)); })
+    .catch(error => { grid.innerHTML = '<p>Could not load cars.json. Make sure it is in the repository root.</p>'; console.error(error); });
+})();
