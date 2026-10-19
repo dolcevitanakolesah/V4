@@ -1,7 +1,7 @@
 /* Italian Finds V6
    Add/remove cars in cars.json. Folder numbers remain 01, 02, 03...
    Images: assets/NN/PREFIX-Main.jpg and PREFIX-01.jpg, PREFIX-02.jpg...
-   Optional videos: PREFIX-VIDEO-01.mp4, PREFIX-VIDEO-02.mp4...
+   Optional videos: PREFIX-video-01.mp4, PREFIX-video-02.mp4...
 */
 let cars = [];
 const grid=document.getElementById('carGrid'),dialog=document.getElementById('galleryDialog'),galleryGrid=document.getElementById('galleryGrid'),lightbox=document.getElementById('lightbox'),lightboxContent=document.getElementById('lightboxContent');
@@ -31,8 +31,8 @@ async function openGallery(car){
  document.getElementById('galleryTitle').textContent=`${car.year} ${car.name}`;galleryGrid.innerHTML='<p class="gallery-loading">Loading photographs…</p>';activeItems=[];if(!dialog.open)dialog.showModal();
  const photos=await discoverSequence(car,'jpg',1,250);
  activeItems=photos.map(p=>({type:'image',src:p.src,title:''}));
- // Videos are appended after all photos. Name them PREFIX-VIDEO-01.mp4, -02.mp4...
- for(let n=1;n<=30;n++){const filename=`${car.prefix}-VIDEO-${String(n).padStart(2,'0')}.mp4`;const src=path(car,filename);if(!await mediaExists(src))break;activeItems.push({type:'video',src,title:''});}
+ // Videos are appended after all photos. Filenames use lowercase "-video-01.mp4", "-video-02.mp4", etc.
+ for(let n=1;n<=30;n++){const filename=`${car.prefix}-video-${String(n).padStart(2,'0')}.mp4`;const src=path(car,filename);if(!await mediaExists(src))break;activeItems.push({type:'video',src,title:''});}
  galleryGrid.innerHTML='';if(!activeItems.length){galleryGrid.innerHTML='<p>No numbered photographs found. Check the folder, prefix, and filenames.</p>';return;}
  activeItems.forEach((item,index)=>{const fig=document.createElement('figure');fig.className='gallery-item';if(item.type==='image'){const img=document.createElement('img');img.src=item.src;img.alt=item.title;img.loading='lazy';img.addEventListener('click',()=>showLightbox(index));fig.appendChild(img);}else{const v=document.createElement('video');v.className='gallery-video';v.src=item.src;v.controls=true;v.preload='metadata';v.playsInline=true;fig.appendChild(v);const open=document.createElement('button');open.className='video-open';open.type='button';open.textContent='Open video';open.addEventListener('click',()=>showLightbox(index));fig.appendChild(open);}galleryGrid.appendChild(fig);});
 }
